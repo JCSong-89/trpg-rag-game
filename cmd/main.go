@@ -6,6 +6,7 @@ import (
 	"github.com/JCSong-89/trpg-rag-game/internal/config"
 	"github.com/JCSong-89/trpg-rag-game/internal/db"
 	"github.com/JCSong-89/trpg-rag-game/internal/llm"
+	"github.com/JCSong-89/trpg-rag-game/internal/prompt"
 	"github.com/joho/godotenv"
 	"log"
 )
@@ -26,8 +27,7 @@ func main() {
 	defer grpcConn.Close()
 	db.Cleanup(ctx, neo4jDriver, quadrantCollectionClient)
 
-	prompt := fmt.Sprintf("안녕! 잘 연결됐니?")
-	responseText, err := llm.GenerateContentWithHTTP(ctx, prompt)
+	responseText, err := llm.GenerateContentWithHTTP(ctx, prompt.SystemPromt)
 	if err != nil {
 		log.Fatalf("API 호출 중 에러 발생: %v", err)
 	}
