@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/JCSong-89/trpg-rag-game/internal/llm"
 	"github.com/JCSong-89/trpg-rag-game/pkg/types"
+	"github.com/google/uuid"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"github.com/qdrant/go-client/qdrant"
 	"log"
+	"os"
+	"strings"
 )
 
 func insertNodeToNeo4j(ctx context.Context, tx neo4j.ManagedTransaction, entity types.Entity) error {
@@ -67,8 +71,29 @@ func processSingleEntity(ctx context.Context, session neo4j.SessionWithContext, 
 func ProcessAndStoreEntities(ctx context.Context, driver neo4j.DriverWithContext, quadrantClient qdrant.PointsClient, collectionName string, entities []types.Entity) {
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
 	defer session.Close(ctx)
+	hfAPIToken := os.Getenv("HUGGING_TOKEN")
 
 	for _, entity := range entities {
+		var propStrings []string
+		entity.ID = uuid.New().String()
+
+		for key, value := range entity.Properties {
+			propStrings = append(propStrings, fmt.Sprintf("%s: %v", key, value))
+		}
+
+		textToEmbed := entity.Name
+		if len(propStrings) > 0 {
+			textToEmbed += ", " + strings.Join(propStrings, ", ")
+		}
+
+		// 2. ⭐️ 임베딩 생성 함수 호출
+		embeddings, err := llm.GetBGEEmbeddings([]string{textToEmbed}, hfAPIToken)
+		if err != nil {
+			log.Printf("ID '%s'의 임베딩 생성 실패: %v", entity.ID, err)
+			continue // 이 엔티티는 건너뛰고 계속 진행
+		}
+		entity.Embedding = embeddings[0]
+
 		if err := processSingleEntity(ctx, session, quadrantClient, collectionName, entity); err != nil {
 			log.Printf("ERROR processing entity %s: %v", entity.Name, err)
 		}
@@ -82,4 +107,29 @@ func ParseAndRefineResponse(jsonString string) ([]types.Entity, []types.Relation
 	}
 
 	return parsedResult.Entities, parsedResult.Relations, nil
+}
+
+func InsertRelations(ctx context.Context, driver neo4j.DriverWithContext, relations []types.Relation) {
+	session := driver.NewSession(ctx, neo4j.SessionConfig{})
+	defer session.Close(ctx)
+
+	for _, rel := range relations {
+		// Neo4j에 관계(Edge) 저장 🕸️
+		cypherQuery := fmt.Sprintf(`
+            MATCH (a {name: $sourceName})
+            MATCH (b {name: $targetName})
+            CREATE (a)-[:%s]->(b)
+        `, rel.Type)
+		_, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+			_, err := tx.Run(ctx, cypherQuery, map[string]any{
+				"sourceName": rel.SourceName,
+				"targetName": rel.TargetName,
+			})
+			return nil, err
+		})
+		if err != nil {
+			log.Fatalf("Failed to create Neo4j relationship %s-[:%s]->%s: %v", rel.SourceName, rel.Type, rel.TargetName, err)
+		}
+		log.Printf("... Inserted Edge '%s-[:%s]->%s' into Neo4j.", rel.SourceName, rel.Type, rel.TargetName)
+	}
 }

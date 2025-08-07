@@ -8,6 +8,7 @@ import (
 	"github.com/JCSong-89/trpg-rag-game/internal/db"
 	"github.com/JCSong-89/trpg-rag-game/internal/llm"
 	"github.com/JCSong-89/trpg-rag-game/internal/prompt"
+	"github.com/JCSong-89/trpg-rag-game/pkg/utils"
 	"github.com/joho/godotenv"
 	"github.com/qdrant/go-client/qdrant"
 	"log"
@@ -27,14 +28,15 @@ func main() {
 
 	quadrantCollectionClient, pointsClient, grpcConn := db.NewQuadrantClient(configData)
 	defer grpcConn.Close()
-	/*TODO: 데이터 적재 시작 후에 삭제*/
-	db.Cleanup(ctx, neo4jDriver, quadrantCollectionClient)
 
+	/*TODO: 데이터 적재 시작 후에 삭제*/
 	collectionName := "football_news"
+	db.Cleanup(ctx, neo4jDriver, quadrantCollectionClient, collectionName)
+
 	_, err = quadrantCollectionClient.Create(ctx, &qdrant.CreateCollection{
 		CollectionName: collectionName,
 		VectorsConfig: &qdrant.VectorsConfig{Config: &qdrant.VectorsConfig_Params{
-			Params: &qdrant.VectorParams{Size: 4, Distance: qdrant.Distance_Cosine},
+			Params: &qdrant.VectorParams{Size: 1024, Distance: qdrant.Distance_Cosine},
 		}},
 	})
 
@@ -43,11 +45,17 @@ func main() {
 		log.Fatalf("API 호출 중 에러 발생: %v", err)
 	}
 
-	entities, _, err := data.ParseAndRefineResponse(responseText)
+	jsonData, err := utils.ExtractJSONFromString(responseText)
+	if err != nil {
+		log.Fatalf("API 호출 중 에러 발생: %v", err)
+	}
+
+	entities, relations, err := data.ParseAndRefineResponse(jsonData)
 	if err != nil {
 		log.Fatalf("LLM 응답 정제 실패: %v", err)
 	}
 
 	data.ProcessAndStoreEntities(ctx, neo4jDriver, pointsClient, collectionName, entities)
+	data.InsertRelations(ctx, neo4jDriver, relations)
 	fmt.Println(responseText)
 }

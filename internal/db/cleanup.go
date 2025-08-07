@@ -6,7 +6,7 @@ import (
 	"github.com/qdrant/go-client/qdrant"
 )
 
-func Cleanup(ctx context.Context, driver neo4j.DriverWithContext, qdrantCollectionsClient qdrant.CollectionsClient) {
+func Cleanup(ctx context.Context, driver neo4j.DriverWithContext, qdrantCollectionsClient qdrant.CollectionsClient, collectionName string) {
 
 	session := driver.NewSession(ctx, neo4j.SessionConfig{})
 	defer session.Close(ctx)
@@ -16,5 +16,5 @@ func Cleanup(ctx context.Context, driver neo4j.DriverWithContext, qdrantCollecti
 		return nil, nil
 	})
 
-	qdrantCollectionsClient.Delete(ctx, &qdrant.DeleteCollection{CollectionName: "game_world"})
+	qdrantCollectionsClient.Delete(ctx, &qdrant.DeleteCollection{CollectionName: collectionName})
 }
