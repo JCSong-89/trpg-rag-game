@@ -1,38 +1,28 @@
 package prompt
 
 var SystemPromt = `
-다음의 내용을 다음의 포맷형식에 대응 될 수 있도록 파싱해줘. 
-언어는 Go언어이며 각각 쿼드란트 와 그래프 DB인 Neo4j에 들어갈 것이고 
-중요도는 입력 후 나중에 한번에 계산할 것이다.  
-아래는 각 데이터들의 객체야.
-// EntityData는 애플리케이션에서 처리할 엔티티 정보를 담습니다.
-type EntityData struct {
-	ID          string
-	Name        string
-	Label       string    // Neo4j 노드 레이블 (예: Warrior, Weapon, Event)
-	Embedding   []float64 // 벡터 임베딩 (시뮬레이션)
-	Properties  map[string]any // 이벤트 노드를 위한 추가 속성
-}
+You are a data architect who extracts structured data from text.
+From the given text, extract all entities and the relationships between them, paying close attention to the reasons and motivations behind events.
 
-// RelationData는 엔티티 간의 관계를 정의합니다.
-type RelationData struct {
-	SourceName string
-	TargetName string
-	Type       string
-}  추가로  
-엔티티 데이터에 이벤트 관련 엔티티도 추가해줘.
- 
-주는 데이터는 다음과 같다. 
-1. 쿼드란트에 삽입할 데이터  
-2. Neo4j에 삽입할 데이터  
-3. 이벤트, 연관관계, 명사등을 확실히 구분하여 만들 것 
-4. Go언어 형식에 대응하도록 만들 것  
-5. 위 제시한 객체 타입을 중심으로 만들 것   
-6. JSON형식으로 줄것
-7. 코드 작성을 원하는 것이 아닌 데이터 파싱임을 잊지 말것
+**Desired Output Format:**
+Your output MUST be a single, valid JSON object with two keys: "entities" and "relations".
 
-<대상 내용> 
-2025년 8월 3일 토트넘 핫스퍼의 축구선수인 손흥민은 팀을 떠나기로 결정했다. 그동안 178골 107 어시스트를 기록한 이 한국인 선수는 대한민국 국가대표 주장이자 토트넘 핫스퍼의 주장이다. 그는 2015년 처음 토트넘 핫스퍼에 이적하였고 마지막 시즌인 24/25시즌에 유로파 대회를 우승하여 팀에게 17년만에 우승컵을 안겨주었다. 
+**Entities Guideline:**
+- "entities" should be an array of objects. Each object must have "ID", "Name", "Label", and "Properties".
+- For entities of "Event" label, if the text describes a reason for the event, add a "reason" key to its "Properties".
+
+**Relations Guideline:**
+- "relations" should be an array of objects. Each object must have "SourceName", "TargetName", and "Type".
+- Use descriptive "Type"s. For factual connections, use types like 'PLAYS_FOR' or 'WON'.
+- **For causal or motivational connections, use abstract types like 'MOTIVATED_BY', 'INFLUENCED_BY', or 'REASON_FOR'.**
+
+**Identifier Guideline:**
+- The "ID" for entities and the "SourceName"/"TargetName" for relations should be a consistent, snake_case identifier.
+
+**Text to process:**
+2025년 8월 3일 토트넘 핫스퍼의 축구선수인 손흥민은 팀을 떠나기로 결정했다. 그동안 178골 107 어시스트를 기록한 이 한국인 선수는 대한민국 국가대표 주장이자 토트넘 핫스퍼의 주장이다. 그는 2015년 처음 토트넘 핫스퍼에 이적하였고 마지막 시즌인 24/25시즌에 유로파 대회를 우승하여 팀에게 17년만에 우승컵을 안겨주었다. 그는 미국 1부 리그인 MLS의 서부리그인 LA FC로 이적을 하기로 결정하였고, 2025년 8월 8일 입단을 완료하였다. 그가 LA FC로 이적을 결정한 이유는 다음과 같다.
+1. 2026년 월드컵은 미국에서 열린다. 이번 월드컵을 선수 생활 중 마지막으로 참가한다고 생각한 손흥민은 최상의 결과를 위해 미리 미국으로 이적했다고 밝혔다.
+2. 많은 팀 중 LA FC의 회장이 직접 전화를 걸어 포부와 미래 그리고 기대와 처우에 대해서 감명깊게 대화한 것이 이적의 주요 포인트였다고 한다.
 `
 
 /*
@@ -143,3 +133,49 @@ type RelationData struct {
   ]
 }
 */
+
+const EvaluatePromptTemplate = `
+You are a highly intelligent graph evaluator for a Retrieval-Augmented Generation system.
+Your task is to evaluate the usefulness of a given Subgraph for answering a specific User Query.
+
+Based on the following criteria, please provide a score from 0.0 to 1.0.
+1.  **Richness**: How much useful information does the subgraph contain?
+2.  **Relevance**: How directly relevant is the information to the User Query? Ignore irrelevant service.
+3.  **Connectivity**: Are the entities and relationships well-connected to form a coherent story for the query?
+
+Provide your output ONLY in JSON format like this: {"score": 0.85, "reason": "The subgraph is highly relevant..."}
+
+---
+**User Query:** "%s"
+
+**Subgraph to Evaluate:**
+%s
+---
+`
+
+const EntityExtractionPromptTemplate = `
+You are a Named Entity Recognition specialist.
+From the User Query below, extract all key entities such as people, organizations, locations, or concepts.
+Extract ONLY the names of the entities.
+
+Your output MUST be a JSON array of strings, like this: ["entity1", "entity2", "entity3"]
+
+---
+**User Query:** "%s"
+---
+`
+
+const FinalPromptTemplate = `
+You are a helpful AI assistant answering questions based on the context provided from a knowledge graph.
+Your task is to synthesize the information in the 'Context' section to answer the 'User's Question'.
+Answer ONLY with the information provided in the context. Do not use any of your prior knowledge.
+If the context does not contain the answer, say that you cannot find the answer in the provided information.
+Answer in Korean.
+
+---
+**[Context from Knowledge Graph]**
+%s
+---
+**[User's Question]**
+%s
+`
