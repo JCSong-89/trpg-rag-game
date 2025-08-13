@@ -69,6 +69,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Gemini 엔티티 추출 API 호출 실패: %v", err)
 	}
+
 	jsonString, err := utils.ExtractJSONFromString(keyword)
 	if err != nil {
 		log.Fatalf("응답에서 JSON 추출 실패: %v", err)
