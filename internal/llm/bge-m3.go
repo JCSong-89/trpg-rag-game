@@ -41,7 +41,6 @@ func GetBGEEmbeddings(texts []string, apiToken string) ([][]float32, error) {
 		return nil, fmt.Errorf("API가 에러를 반환했습니다. 상태 코드: %d, 응답: %v", resp.StatusCode, errorResponse)
 	}
 
-	// 성공 응답 본문 파싱
 	var embeddings [][]float32
 	if err := json.NewDecoder(resp.Body).Decode(&embeddings); err != nil {
 		return nil, fmt.Errorf("JSON 응답 디코딩 실패: %w", err)

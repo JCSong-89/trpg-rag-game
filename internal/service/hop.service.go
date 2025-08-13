@@ -168,7 +168,7 @@ func GetImportanceBasedSubgraph(ctx context.Context, driver neo4j.DriverWithCont
 
 	if err != nil {
 		log.Printf("경고: 중요도 기반 서브그래프 생성 실패: %v", err)
-		return &types.Subgraph{}, nil // nil이 아닌 빈 서브그래프를 반환하여 panic 방지
+		return &types.Subgraph{}, nil
 	}
 
 	record := result.(*neo4j.Record)
