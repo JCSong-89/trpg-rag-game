@@ -59,6 +59,7 @@ func main() {
 		log.Fatalf("LLM 응답 정제 실패: %v", err)
 	}
 
+	/* TODO: 임베딩 과정과 릴레이션 생성은 고루틴으로 돌리는게 좋을 듯 */
 	service.ProcessAndStoreEntities(ctx, neo4jDriver, pointsClient, collectionName, entities)
 	service.InsertRelations(ctx, neo4jDriver, relations)
 	fmt.Println(responseText)
@@ -130,8 +131,5 @@ func main() {
 		log.Fatal("LLM 최종 답변 생성 실패: %w", err)
 	}
 
-	if err != nil {
-		log.Fatalf("최종 답변 생성 실패: %v", err)
-	}
 	fmt.Println("최종 답변:", answer)
 }
